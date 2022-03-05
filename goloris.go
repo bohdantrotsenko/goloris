@@ -25,9 +25,9 @@ var (
 	rampUpInterval   = flag.Duration("rampUpInterval", time.Second, "Interval between new connections' acquisitions for a single dial worker (see dialWorkersCount)")
 	sleepInterval    = flag.Duration("sleepInterval", 10*time.Second, "Sleep interval between subsequent packets sending. Adjust to nginx's client_body_timeout")
 	testDuration     = flag.Duration("testDuration", time.Hour, "Test duration")
-	victimUrl        = flag.String("victimUrl", "http://127.0.0.1/", "Victim's url. Http POST must be allowed in nginx config for this url")
-	hostHeader       = flag.String("hostHeader", "", "Host header value in case it is different than the hostname in victimUrl")
-	maxConn          = flag.Int("maxConn", 1024, "maximum number of connection")
+	// victimUrl        = flag.String("victimUrl", "http://127.0.0.1/", "Victim's url. Http POST must be allowed in nginx config for this url")
+	hostHeader = flag.String("hostHeader", "", "Host header value in case it is different than the hostname in victimUrl")
+	maxConn    = flag.Int("maxConn", 1024, "maximum number of connection")
 )
 
 var (
@@ -39,13 +39,16 @@ var (
 	}
 )
 
+var victimUrl *string = new(string)
+
 func main() {
 	flag.Parse()
 	flag.VisitAll(func(f *flag.Flag) {
 		fmt.Printf("%s=%v\n", f.Name, f.Value)
 	})
+	*victimUrl = flag.Arg(0)
 
-	runtime.GOMAXPROCS(*goMaxProcs)
+	// runtime.GOMAXPROCS(*goMaxProcs)
 
 	victimUri, err := url.Parse(*victimUrl)
 	if err != nil {
